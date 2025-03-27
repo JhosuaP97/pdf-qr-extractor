@@ -2,8 +2,12 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import jsQR from 'jsqr';
 
-// Set the worker source
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Set up the worker locally instead of fetching from CDN
+// This creates a worker bundle that's included in the application
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url
+).toString();
 
 export interface QRCodeResult {
   data: string;
@@ -13,13 +17,19 @@ export interface QRCodeResult {
 
 export const extractQRCodesFromPDF = async (file: File): Promise<QRCodeResult[]> => {
   try {
+    console.log("Starting PDF processing...");
     const fileArrayBuffer = await file.arrayBuffer();
+    console.log("File loaded as ArrayBuffer");
+    
     const pdf = await pdfjsLib.getDocument({ data: fileArrayBuffer }).promise;
+    console.log(`PDF loaded with ${pdf.numPages} pages`);
+    
     const results: QRCodeResult[] = [];
 
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      console.log(`Processing page ${pageNum}...`);
       const page = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 1.0 });
+      const viewport = page.getViewport({ scale: 1.5 }); // Increased scale for better QR detection
       
       // Create canvas
       const canvas = document.createElement('canvas');
@@ -39,15 +49,19 @@ export const extractQRCodesFromPDF = async (file: File): Promise<QRCodeResult[]>
         viewport: viewport
       }).promise;
 
+      console.log(`Page ${pageNum} rendered to canvas`);
+
       // Get image data
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       
       // Find QR codes
       const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'dontInvert'
+        inversionAttempts: 'attemptBoth' // Try both normal and inverted colors
       });
 
       if (qrCode) {
+        console.log(`QR code found on page ${pageNum}: ${qrCode.data}`);
+        
         // Create thumbnail
         const thumbnailCanvas = document.createElement('canvas');
         const thumbnailCtx = thumbnailCanvas.getContext('2d');
@@ -64,9 +78,12 @@ export const extractQRCodesFromPDF = async (file: File): Promise<QRCodeResult[]>
             thumbnail
           });
         }
+      } else {
+        console.log(`No QR code found on page ${pageNum}`);
       }
     }
 
+    console.log(`Processing complete. Found ${results.length} QR codes.`);
     return results;
   } catch (error) {
     console.error('Error processing PDF:', error);

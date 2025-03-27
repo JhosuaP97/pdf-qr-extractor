@@ -10,6 +10,7 @@ const LoadingIndicator: React.FC = () => {
         <div className="w-4 h-4 rounded-full bg-primary animate-bounce"></div>
       </div>
       <p className="mt-4 text-gray-500">Procesando PDF y buscando códigos QR...</p>
+      <p className="mt-2 text-gray-400 text-sm">Esto puede tomar unos momentos según el tamaño del documento</p>
     </div>
   );
 };
